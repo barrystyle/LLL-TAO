@@ -73,6 +73,7 @@ namespace Legacy
         mapFunctions["getblockhash"] = TAO::API::Function(std::bind(&RPC::GetBlockHash, this, std::placeholders::_1, std::placeholders::_2));
         mapFunctions["isorphan"] = TAO::API::Function(std::bind(&RPC::IsOrphan, this, std::placeholders::_1, std::placeholders::_2));
         mapFunctions["getblock"] = TAO::API::Function(std::bind(&RPC::GetBlock, this, std::placeholders::_1, std::placeholders::_2));
+        mapFunctions["getblocktemplate"] = TAO::API::Function(std::bind(&RPC::GetBlockTemplate, this, std::placeholders::_1, std::placeholders::_2));
         mapFunctions["backupwallet"] = TAO::API::Function(std::bind(&RPC::BackupWallet, this, std::placeholders::_1, std::placeholders::_2));
         mapFunctions["keypoolrefill"] = TAO::API::Function(std::bind(&RPC::KeypoolRefill, this, std::placeholders::_1, std::placeholders::_2));
         mapFunctions["settxfee"]      = TAO::API::Function(std::bind(&RPC::SetTxFee, this, std::placeholders::_1, std::placeholders::_2));

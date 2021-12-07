@@ -19,6 +19,10 @@ ________________________________________________________________________________
 #include <Legacy/types/address.h>
 #include <Legacy/types/trustkey.h>
 
+#include <Legacy/types/legacy.h>
+#include <Legacy/wallet/wallet.h>
+#include <Legacy/types/reservekey.h>
+
 #include <TAO/Ledger/include/constants.h>
 #include <TAO/Ledger/include/chainstate.h>
 #include <TAO/Ledger/include/difficulty.h>
@@ -425,5 +429,80 @@ namespace Legacy
             nVerbose = 2;
 
         return TAO::API::BlockToJSON(block, nVerbose);
+    }
+
+    /* Create a recent blocktemplate for hashing */
+    encoding::json RPC::GetBlockTemplate(const encoding::json& params, const bool fHelp)
+    {
+        static TAO::Ledger::BlockState pindexPrev;
+        static TAO::Ledger::BlockState blocktemplate;
+        static int64_t nStart;
+
+        //! acquire best block
+        TAO::Ledger::BlockState pindexBest = TAO::Ledger::ChainState::stateBest.load();
+        if (pindexPrev != pindexBest && runtime::timestamp() - nStart > 5)
+        {
+            // Store the pindexBest used before CreateNewBlock, to avoid races
+            static TAO::Ledger::BlockState pindexPrevNew = pindexBest;
+            nStart = runtime::timestamp();
+
+            // Create new block
+            blocktemplate = TAO::Ledger::TritiumBlock();
+
+            // Need to update only after we know CreateNewBlock succeeded
+            pindexPrev = pindexPrevNew;
+        }
+        TAO::Ledger::Block *pBlock = &blocktemplate;
+
+        encoding::json transactions; //! worry about this later
+
+        //! organise data
+        TAO::Ledger::BlockState lastHashBlockState = TAO::Ledger::ChainState::stateBest.load();
+
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        Legacy:: Wallet& wallet = Legacy::Wallet::Instance();
+        static Legacy::ReserveKey coinbaseKey(wallet);
+
+        uint32_t nID = 3;
+        uint32_t nChannel = 2;
+
+        Transaction coinbaseTx;
+        coinbaseTx.vin.resize(1);
+        coinbaseTx.vin[0].prevout.SetNull();
+        coinbaseTx.vin[0].scriptSig = (Legacy::Script() << ((uint64_t)nID * 513513512151));
+        coinbaseTx.vout.resize(1);
+        coinbaseTx.vout[0].scriptPubKey << coinbaseKey.GetReservedKey() << Legacy::OP_CHECKSIG;
+        coinbaseTx.vout[0].nValue = TAO::Ledger::GetCoinbaseReward(lastHashBlockState, nChannel, 0);
+
+        DataStream ssTx(SER_NETWORK, LLP::PROTOCOL_VERSION);
+        ssTx << coinbaseTx;
+        std::string coinbaseRaw = HexStr(ssTx.begin(), ssTx.end());
+
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        auto height = TAO::Ledger::ChainState::nBestHeight.load();
+        auto nbits = TAO::Ledger::GetNextTargetRequired(lastHashBlockState, 2, false);
+        auto target = LLC::CBigNum().SetCompact(nbits).getuint1024();
+        auto blockreward = TAO::Ledger::GetCoinbaseReward(lastHashBlockState, 2, 0);
+        auto ntime = static_cast<uint32_t>(std::max(lastHashBlockState.GetBlockTime() + 1, runtime::unifiedtimestamp()));
+
+        //! construct blocktemplate object
+        encoding::json obj;
+        obj["version"] = pBlock->nVersion;
+        obj["previousblockhash"] = lastHashBlockState.hashPrevBlock.GetHex();
+        obj["transactions"] = transactions;
+        obj["coinbasevalue"] = (int64_t)blockreward;
+        obj["target"] = target.GetHex();
+        obj["mintime"] = (int64_t)ntime - 300; //! ? suck it and see
+        obj["noncerange"] = "00000000ffffffff";
+        obj["sigoplimit"] = (int64_t)TAO::Ledger::MAX_BLOCK_SIGOPS;
+        obj["sizelimit"] = (int64_t)TAO::Ledger::MAX_BLOCK_SIZE;
+        obj["curtime"] = (int64_t)ntime;
+        obj["bits"] = HexBits(nbits);
+        obj["height"] = height;
+        obj["coinbaseraw"] = coinbaseRaw;
+
+        return obj;
     }
 }

@@ -727,6 +727,19 @@ namespace Legacy
         encoding::json GetBlock(const encoding::json& params, const bool fHelp);
 
 
+        /** GetBlockTemplate
+        *
+        *  getblocktemplate
+        *  Returns a block template for use with mining software.
+        *
+        *  @param[in] params Parameters array passed by the caller.
+        *
+        *  @return JSON containing the information.
+        *
+        **/
+        encoding::json GetBlockTemplate(const encoding::json& params, const bool fHelp);
+
+
         /** BackupWallet
         *
         *  backupwallet <destination>
